@@ -8,9 +8,16 @@ import (
 )
 
 func main() {
-	client := client.NewMinioClient()
-	bucketName := handler.CreateBucket(client)
-	err := handler.UploadFiles(client, bucketName)
+	s3Client, err := client.CreateS3Client()
+	if err != nil {
+		log.Fatal(err)
+	}
+	bucketName := handler.CreateBucket(s3Client.Ctx, s3Client.Client)
+	// err = handler.UploadFiles(s3Client.Ctx, s3Client.Client, bucketName)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	err = handler.DownloadFile(s3Client.Client, bucketName, "object1.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
