@@ -6,11 +6,10 @@ import (
 	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// getFilesFromFolder returns a list of file paths from the specified folder.
 func getFilesFromFolder(folderPath string) ([]string, error) {
 	var filePaths []string
 
@@ -28,6 +27,7 @@ func getFilesFromFolder(folderPath string) ([]string, error) {
 	return filePaths, nil
 }
 
+// getTotalVersionedSize calculates the total size of all versions of objects in the specified S3 bucket.
 func getTotalVersionedSize(bucket string, client *s3.Client) (int64, error) {
 	var totalSize int64
 	paginator := s3.NewListObjectVersionsPaginator(client, &s3.ListObjectVersionsInput{
@@ -46,26 +46,4 @@ func getTotalVersionedSize(bucket string, client *s3.Client) (int64, error) {
 	}
 
 	return totalSize, nil
-}
-
-// CreateS3Client returns a MinIO-compatible S3 client
-func CreateS3Client(endpoint, accessKey, secretKey string) (*s3.Client, error) {
-	customResolver := aws.EndpointResolverWithOptionsFunc(
-		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				URL:           endpoint,
-				SigningRegion: "eu-west-4", // default region used by MinIO
-			}, nil
-		})
-
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion("eu-west-4"),
-		config.WithEndpointResolverWithOptions(customResolver),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return s3.NewFromConfig(cfg), nil
 }

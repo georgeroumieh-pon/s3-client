@@ -10,39 +10,49 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.uber.org/zap"
 )
 
 const (
 	MinFileSizeMB      = 10
-	MinFileSizeBytes   = MinFileSizeMB * 1024 * 1024
-	MaxBucketSizeBytes = 1 * 1024 * 1024 * 1024 // 1 GB
+	MinFileSizeBytes   = MinFileSizeMB * 1024 * 1024 // 10 MB
+	MaxBucketSizeBytes = 1 * 1024 * 1024 * 1024      // 1 GB
+	filesFolderPath    = "../files"
+	downloadFolderPath = "../downloads"
 )
 
-// UploadFiles uploads exactly 5 files to the specified bucket in parallel using AWS SDK,
-// rejecting files smaller than 10MB and preventing uploads that would exceed 1GB total bucket size.
-func UploadFiles(ctx context.Context, s3Client *s3.Client, bucketName string) error {
-	filePaths, err := getFilesFromFolder("../files")
-	fmt.Println(filePaths)
+// UploadFiles uploads files from the local folder "files" to the S3 bucket.
+// It apply three rules:
+// 1. The files must be at least 5 files and each file must be at least 10MB.
+// 2. The total size of the bucket (including all versions) must not exceed 1GB.
+// 3. The files must be uploaded concurrently.
+func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, bucketName string) (err error) {
+	// Get the list of files from the local folder
+	filePaths, err := getFilesFromFolder(filesFolderPath)
 	if err != nil {
 		return fmt.Errorf("❌ Failed to read files folder: %w", err)
 	}
-
+	// Check if there are at least 5 files
 	if len(filePaths) < 5 {
 		return fmt.Errorf("❌ You must provide minimum 5 files")
 	}
 
+	// Create a wait group to wait for all uploads to finish
 	var wg sync.WaitGroup
+	// Create a channel to handle errors
 	errChan := make(chan error, len(filePaths))
+	// Create a mutex to protect the shared variable currentSize
 	mu := &sync.Mutex{}
 
-	// Step 1: Get current total bucket size (including all versions)
+	// Get current total bucket size (including all versions)
 	currentSize, err := getTotalVersionedSize(bucketName, s3Client)
 	if err != nil {
 		return fmt.Errorf("❌ Failed to calculate current bucket size: %w", err)
 	}
 
-	fmt.Printf("📦 Current bucket size: %d MB\n", currentSize/(1024*1024))
+	log.Sugar().Infof("📦 Current bucket size: %d MB\n", currentSize/(1024*1024))
 
+	// Iterate over the files and upload them concurrently
 	for _, path := range filePaths {
 		wg.Add(1)
 		go func(filePath string) {
@@ -61,22 +71,27 @@ func UploadFiles(ctx context.Context, s3Client *s3.Client, bucketName string) er
 				return
 			}
 
+			// Check if the file is smaller than 10MB
 			if stat.Size() < MinFileSizeBytes {
 				errChan <- fmt.Errorf("⚠️ File %s is smaller than %dMB", filePath, MinFileSizeMB)
 				return
 			}
 
 			mu.Lock()
-			if currentSize+stat.Size() > MaxBucketSizeBytes {
+
+			objectKey := filepath.Base(filePath)
+			bucketSizeAfterUpload := currentSize + stat.Size()
+
+			// Check if the bucket size after upload would exceed the 1GB limit
+			if bucketSizeAfterUpload > MaxBucketSizeBytes {
 				mu.Unlock()
-				errChan <- fmt.Errorf("🚫 Uploading %s would exceed 1GB bucket limit", filePath)
+				errChan <- fmt.Errorf("🚫 Uploading %s would exceed 1GB bucket limit", objectKey)
 				return
 			}
 			currentSize += stat.Size()
 			mu.Unlock()
 
-			objectKey := filepath.Base(filePath)
-
+			// Upload the file to S3
 			_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 				Bucket: aws.String(bucketName),
 				Key:    aws.String(objectKey),
@@ -86,7 +101,7 @@ func UploadFiles(ctx context.Context, s3Client *s3.Client, bucketName string) er
 				errChan <- fmt.Errorf("❌ Upload failed for %s: %w", objectKey, err)
 				return
 			}
-			fmt.Printf("✅ Uploaded %s (%d MB)\n", objectKey, stat.Size()/(1024*1024))
+			log.Sugar().Infof("✅ Uploaded %s (%d MB)\n", objectKey, stat.Size()/(1024*1024))
 
 		}(path)
 	}
@@ -94,43 +109,47 @@ func UploadFiles(ctx context.Context, s3Client *s3.Client, bucketName string) er
 	wg.Wait()
 	close(errChan)
 
+	// Check for errors in the error channel
 	var combinedErr error
 	for err := range errChan {
-		fmt.Println(err)
+		log.Sugar().Info(err)
 		combinedErr = fmt.Errorf("some uploads failed")
 	}
 	return combinedErr
 }
 
 // Downloads a file from S3 and saves it to ./download/<objectName>
-func DownloadFile(s3Client *s3.Client, bucketName, objectKey string) error {
+func DownloadFile(log *zap.Logger, s3Client *s3.Client, bucketName string, filesToDownload []string) error {
 	ctx := context.TODO()
 
-	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(objectKey),
-	})
-	if err != nil {
-		return fmt.Errorf("❌ Failed to get object: %w", err)
+	for _, objectKey := range filesToDownload {
+		// get the object from S3
+		output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(objectKey),
+		})
+		if err != nil {
+			return fmt.Errorf("❌ Failed to get object: %w", err)
+		}
+		defer output.Body.Close()
+
+		// Build the destination path in ./download/
+		destPath := filepath.Join(downloadFolderPath, filepath.Base(objectKey))
+
+		// Create the destination file
+		outFile, err := os.Create(destPath)
+		if err != nil {
+			return fmt.Errorf("❌ Failed to create file: %w", err)
+		}
+		defer outFile.Close()
+
+		// Copy content
+		written, err := io.Copy(outFile, output.Body)
+		if err != nil {
+			return fmt.Errorf("❌ Failed to write file: %w", err)
+		}
+
+		log.Sugar().Infof("✅ Downloaded %s (%d bytes) to %s\n", objectKey, written, destPath)
 	}
-	defer output.Body.Close()
-
-	// Build the destination path in ./download/
-	destPath := filepath.Join("../downloads", filepath.Base(objectKey))
-
-	// Create the destination file
-	outFile, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("❌ Failed to create file: %w", err)
-	}
-	defer outFile.Close()
-
-	// Copy content
-	written, err := io.Copy(outFile, output.Body)
-	if err != nil {
-		return fmt.Errorf("❌ Failed to write file: %w", err)
-	}
-
-	fmt.Printf("✅ Downloaded %s (%d bytes) to %s\n", objectKey, written, destPath)
 	return nil
 }
