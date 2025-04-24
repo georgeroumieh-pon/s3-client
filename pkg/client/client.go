@@ -17,7 +17,7 @@ const (
 	region       string = "eu-west-4"
 )
 
-// CreateS3Client returns a MinIO-compatible S3 client
+// S3Client wraps the S3 client and context
 func CreateS3Client() (s3Client *S3Client, err error) {
 	ctx := context.Background()
 	// Get MinIO credentials from environment variables
