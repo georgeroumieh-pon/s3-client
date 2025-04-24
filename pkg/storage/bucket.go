@@ -15,6 +15,9 @@ const (
 	teamName string = "cs-team"
 )
 
+// Create a daily bucket with the format <teamName>-<YYYYMMDD>.
+// If the bucket already exists, it will be used.
+// The bucket will be created in the eu-west-3 region and versioning will be enabled.
 func CreateBucket(log *zap.Logger, ctx context.Context, s3Client *s3.Client) (bucketName string, err error) {
 	// Generate bucket name
 	today := time.Now().Format("20060102")
@@ -23,7 +26,8 @@ func CreateBucket(log *zap.Logger, ctx context.Context, s3Client *s3.Client) (bu
 	// Check if the bucket exists
 	_, err = s3Client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	if err == nil {
-		return bucketName, fmt.Errorf("⚠️ Bucket %s already exists", bucketName)
+		log.Sugar().Infof("⚠️ Bucket %s already exists, using it.", bucketName)
+		return bucketName, nil
 	}
 
 	// Create bucket
@@ -36,7 +40,6 @@ func CreateBucket(log *zap.Logger, ctx context.Context, s3Client *s3.Client) (bu
 		return bucketName, fmt.Errorf("❌ Failed to create bucket: %v", err)
 
 	}
-
 	log.Sugar().Infof("🪣 Bucket %s created successfully\n", bucketName)
 
 	// Enable versioning
