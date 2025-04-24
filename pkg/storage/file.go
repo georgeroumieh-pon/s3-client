@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	MinFileSizeMB      = 10
-	MinFileSizeBytes   = MinFileSizeMB * 1024 * 1024 // 10 MB
-	MaxBucketSizeBytes = 1 * 1024 * 1024 * 1024      // 1 GB
+	minFileSizeMB      = 10
+	minFileSizeBytes   = minFileSizeMB * 1024 * 1024 // 10 MB
+	maxBucketSizeBytes = 1 * 1024 * 1024 * 1024      // 1 GB
 	filesFolderPath    = "../files"
 	downloadFolderPath = "../downloads"
 )
@@ -72,8 +72,8 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 			}
 
 			// Check if the file is smaller than 10MB
-			if stat.Size() < MinFileSizeBytes {
-				errChan <- fmt.Errorf("⚠️ File %s is smaller than %dMB", filePath, MinFileSizeMB)
+			if stat.Size() < minFileSizeBytes {
+				errChan <- fmt.Errorf("⚠️ File %s is smaller than %dMB", filePath, minFileSizeMB)
 				return
 			}
 
@@ -83,7 +83,7 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 			bucketSizeAfterUpload := currentSize + stat.Size()
 
 			// Check if the bucket size after upload would exceed the 1GB limit
-			if bucketSizeAfterUpload > MaxBucketSizeBytes {
+			if bucketSizeAfterUpload > maxBucketSizeBytes {
 				mu.Unlock()
 				errChan <- fmt.Errorf("🚫 Uploading %s would exceed 1GB bucket limit", objectKey)
 				return
