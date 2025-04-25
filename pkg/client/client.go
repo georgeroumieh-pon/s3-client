@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	endpoint     string = "http://localhost:9000"
+	minioUrlEnv  string = "MINIO_URL"
 	accessKeyEnv string = "ACCESS_KEY"
 	secretKeyEnv string = "SECRET_KEY"
 	region       string = "eu-west-4"
@@ -23,14 +23,15 @@ func CreateS3Client() (s3Client *S3Client, err error) {
 	// Get MinIO credentials from environment variables
 	accessKey := os.Getenv(accessKeyEnv)
 	secretKey := os.Getenv(secretKeyEnv)
-	if accessKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("missing ACCESS_KEY or SECRET_KEY environment variables")
+	minioUrl := os.Getenv(minioUrlEnv)
+	if accessKey == "" || secretKey == "" || minioUrl == "" {
+		return nil, fmt.Errorf("missing ACCESS_KEY or SECRET_KEY or MINIO_URL environment variables")
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-		config.WithBaseEndpoint(endpoint),
+		config.WithBaseEndpoint(minioUrl),
 	)
 	if err != nil {
 		return nil, err
