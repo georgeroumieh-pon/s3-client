@@ -35,6 +35,7 @@ func getTotalVersionedSize(bucket string, client *s3.Client) (int64, error) {
 	})
 
 	for paginator.HasMorePages() {
+		//A page is a batch of up to 1000 object versions
 		page, err := paginator.NextPage(context.TODO())
 		if err != nil {
 			return 0, err

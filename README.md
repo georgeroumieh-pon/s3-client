@@ -2,8 +2,6 @@
 
 This Go application provides a complete S3-compatible client to upload and download files using AWS S3. It enforces strict policies on bucket creation and object uploads, mimicking production-grade file storage behavior.
 
-
-
 ## 📦 Features
 
 ✅ Automatically creates a **daily bucket** named `<team>-YYYYMMDD`  

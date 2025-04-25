@@ -37,11 +37,8 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 		return fmt.Errorf("❌ You must provide minimum 5 files")
 	}
 
-	// Create a wait group to wait for all uploads to finish
 	var wg sync.WaitGroup
-	// Create a channel to handle errors
 	errChan := make(chan error, len(filePaths))
-	// Create a mutex to protect the shared variable currentSize
 	mu := &sync.Mutex{}
 
 	// Get current total bucket size (including all versions)
