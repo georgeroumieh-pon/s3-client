@@ -24,6 +24,7 @@ func main() {
 	bucketName, err := storage.CreateBucket(log, s3Client.Ctx, s3Client.Client)
 	if err != nil {
 		log.Sugar().Error(err)
+		return
 	}
 	// Upload files to the bucket
 	err = storage.UploadFiles(log, s3Client.Ctx, s3Client.Client, bucketName)
