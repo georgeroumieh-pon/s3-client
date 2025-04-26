@@ -26,7 +26,7 @@ func CreateBucket(log *zap.Logger, ctx context.Context, s3Client *s3.Client) (bu
 	// Check if the bucket exists
 	_, err = s3Client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	if err == nil {
-		log.Sugar().Infof("⚠️ Bucket %s already exists, using it.", bucketName)
+		log.Sugar().Infof("Bucket %s already exists, using it.", bucketName)
 		return bucketName, nil
 	}
 
@@ -37,7 +37,7 @@ func CreateBucket(log *zap.Logger, ctx context.Context, s3Client *s3.Client) (bu
 		},
 	})
 	if err != nil {
-		return bucketName, fmt.Errorf("❌ Failed to create bucket: %v", err)
+		return bucketName, fmt.Errorf("failed to create bucket: %v", err)
 
 	}
 	log.Sugar().Infof("🪣 Bucket %s created successfully\n", bucketName)
@@ -50,11 +50,11 @@ func CreateBucket(log *zap.Logger, ctx context.Context, s3Client *s3.Client) (bu
 		},
 	})
 	if err != nil {
-		return bucketName, fmt.Errorf("❌ Failed to enable versioning: %v", err)
+		return bucketName, fmt.Errorf("failed to enable versioning: %v", err)
 
 	}
 
-	log.Sugar().Infof("🔁 Versioning enabled on bucket %s", bucketName)
+	log.Sugar().Infof("versioning enabled on bucket %s", bucketName)
 
 	return bucketName, err
 }
