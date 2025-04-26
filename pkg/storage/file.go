@@ -30,11 +30,11 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 	// Get the list of files from the local folder
 	filePaths, err := getFilesFromFolder(filesFolderPath)
 	if err != nil {
-		return fmt.Errorf("failed to read files folder: %w", err)
+		return fmt.Errorf("❌ Failed to read files folder: %w", err)
 	}
 	// Check if there are at least 5 files
 	if len(filePaths) < 5 {
-		return fmt.Errorf("you must provide minimum 5 files")
+		return fmt.Errorf("❌ You must provide minimum 5 files")
 	}
 
 	var wg sync.WaitGroup
@@ -44,10 +44,10 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 	// Get current total bucket size (including all versions)
 	currentSize, err := getTotalVersionedSize(bucketName, s3Client)
 	if err != nil {
-		return fmt.Errorf("failed to calculate current bucket size: %w", err)
+		return fmt.Errorf("❌ Failed to calculate current bucket size: %w", err)
 	}
 
-	log.Sugar().Infof("current bucket size: %d MB\n", currentSize/(1024*1024))
+	log.Sugar().Infof("Current bucket size: %d MB", currentSize/(1024*1024))
 
 	// Iterate over the files and upload them concurrently
 	for _, path := range filePaths {
@@ -57,20 +57,20 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 
 			file, err := os.Open(filePath)
 			if err != nil {
-				errChan <- fmt.Errorf("failed to open %s: %w", filePath, err)
+				errChan <- fmt.Errorf("🚫 Failed to open %s: %w", filePath, err)
 				return
 			}
 			defer file.Close()
 
 			stat, err := file.Stat()
 			if err != nil {
-				errChan <- fmt.Errorf("failed to stat %s: %w", filePath, err)
+				errChan <- fmt.Errorf("🚫 Failed to stat %s: %w", filePath, err)
 				return
 			}
 
 			// Check if the file is smaller than 10MB
 			if stat.Size() < minFileSizeBytes {
-				errChan <- fmt.Errorf("file %s is smaller than %dMB", filePath, minFileSizeMB)
+				errChan <- fmt.Errorf("⚠️ File %s is smaller than %dMB", filePath, minFileSizeMB)
 				return
 			}
 
@@ -82,7 +82,7 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 			// Check if the bucket size after upload would exceed the 1GB limit
 			if bucketSizeAfterUpload > maxBucketSizeBytes {
 				mu.Unlock()
-				errChan <- fmt.Errorf("uploading %s would exceed 1GB bucket limit", objectKey)
+				errChan <- fmt.Errorf("🚫 Uploading %s would exceed 1GB bucket limit", objectKey)
 				return
 			}
 			currentSize += stat.Size()
@@ -95,10 +95,10 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 				Body:   file,
 			})
 			if err != nil {
-				errChan <- fmt.Errorf("upload failed for %s: %w", objectKey, err)
+				errChan <- fmt.Errorf("❌ Upload failed for %s: %w", objectKey, err)
 				return
 			}
-			log.Sugar().Infof("uploaded %s (%d MB)\n", objectKey, stat.Size()/(1024*1024))
+			log.Sugar().Infof("✅ Uploaded %s (%.2f MB)", objectKey, float64(stat.Size())/(1024*1024))
 
 		}(path)
 	}
