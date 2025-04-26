@@ -49,6 +49,7 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 
 	log.Sugar().Infof("Current bucket size: %d MB", currentSize/(1024*1024))
 
+	doneFile6 := make(chan struct{})
 	// Iterate over the files and upload them concurrently
 	for _, path := range filePaths {
 		wg.Add(1)
@@ -66,6 +67,11 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 			if err != nil {
 				errChan <- fmt.Errorf("🚫 Failed to stat %s: %w", filePath, err)
 				return
+			}
+
+			if filePath == "../files/file3.json" {
+				log.Sugar().Info("Waiting for file6 to complete before uploading file3...")
+				<-doneFile6
 			}
 
 			// Check if the file is smaller than 10MB
@@ -99,7 +105,10 @@ func UploadFiles(log *zap.Logger, ctx context.Context, s3Client *s3.Client, buck
 				return
 			}
 			log.Sugar().Infof("✅ Uploaded %s (%.2f MB)", objectKey, float64(stat.Size())/(1024*1024))
-
+			if objectKey == "file6.json" {
+				log.Sugar().Info("File6 upload completed, notifying file3...")
+				close(doneFile6)
+			}
 		}(path)
 	}
 
