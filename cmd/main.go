@@ -31,7 +31,7 @@ func main() {
 	if err != nil {
 		log.Sugar().Error(err)
 	}
-	filesToDownload := []string{"object1.txt", "object2.txt", "object3.txt"}
+	filesToDownload := []string{"file1.json", "file2.json", "file3.json"}
 	// Download a file from the bucket
 	err = storage.DownloadFile(log, s3Client.Client, bucketName, filesToDownload)
 	if err != nil {
